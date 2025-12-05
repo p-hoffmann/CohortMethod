@@ -229,10 +229,10 @@ fitOutcomeModel <- function(population,
         } else {
           # TODO: check if main effect covariate exists in data
           mainEffectTermsCheck <- !is.null(covariateData$covariates %>%
-                                             distinct(.data$covariateId) %>%
-                                             inner_join(covariateData$covariateRef, by = "covariateId") %>%
-                                             select(id = "covariateId", name = "covariateName") %>%
-                                             collect())
+            distinct(.data$covariateId) %>%
+            inner_join(covariateData$covariateRef, by = "covariateId") %>%
+            select(id = "covariateId", name = "covariateName") %>%
+            collect())
 
           if (!mainEffectTermsCheck) {
             stop("No main effects exist.")
@@ -280,10 +280,10 @@ fitOutcomeModel <- function(population,
 
       # Fit model -------------------------------------------------------------------------------------------
       if (stratified &&
-          prior$priorType != "none" &&
-          prior$useCrossValidation &&
-          control$selectorType == "byPid" &&
-          length(unique(informativePopulation$stratumId)) < control$fold) {
+        prior$priorType != "none" &&
+        prior$useCrossValidation &&
+        control$selectorType == "byPid" &&
+        length(unique(informativePopulation$stratumId)) < control$fold) {
         fit <- "NUMBER OF INFORMATIVE STRATA IS SMALLER THAN THE NUMBER OF CV FOLDS, CANNOT FIT"
       } else {
         covariateData$outcomes <- informativePopulation
@@ -420,8 +420,8 @@ fitOutcomeModel <- function(population,
               ci <- tryCatch(
                 {
                   confint(fit,
-                          parm = mainEffectTerms$id, includePenalty = TRUE,
-                          overrideNoRegularization = TRUE
+                    parm = mainEffectTerms$id, includePenalty = TRUE,
+                    overrideNoRegularization = TRUE
                   )
                 },
                 error = function(e) {
@@ -482,6 +482,132 @@ fitOutcomeModel <- function(population,
   if (!is.null(subgroupCounts)) {
     outcomeModel$subgroupCounts <- subgroupCounts
   }
+
+  # Store survival::coxph fit for proportional hazards testing
+  # Only refit for successful Cox models so testProportionalHazards can use the exact model
+  if (modelType == "cox" && status == "OK" && !is.null(fit) && !is.character(fit)) {
+    tryCatch(
+      {
+        # Extract the data used for Cyclops fitting
+        # Note: informativePopulation was removed to free memory, use outcomes (Andromeda reference) instead
+        if (exists("cyclopsData") && exists("outcomes")) {
+          # Collect outcomes from Andromeda for coxph refit
+          outcomesData <- outcomes %>% collect()
+
+          # Build base coxData
+          coxData <- data.frame(
+            rowId = outcomesData$rowId,
+            time = outcomesData$time,
+            y = outcomesData$y,
+            treatment = outcomesData$treatment
+          )
+
+          if (stratified) {
+            coxData$stratumId <- outcomesData$stratumId
+          }
+
+          if (inversePtWeighting) {
+            coxData$weights <- outcomesData$weights
+          }
+
+          includedCovariates <- FALSE
+          nCovariatesIncluded <- 0
+
+          if (useCovariates && !is.null(coefficients) && exists("covariateData") &&
+              inherits(covariateData, "Andromeda") && Andromeda::isValidAndromeda(covariateData)) {
+            allCovariateIds <- as.numeric(names(coefficients))
+            modelCovariateIds <- allCovariateIds[!allCovariateIds %in% c(0, treatmentVarId)]
+
+            if (length(modelCovariateIds) > 0) {
+              ParallelLogger::logInfo(
+                "Reconstructing ", length(modelCovariateIds),
+                " covariates for coxph fit to enable full PH testing"
+              )
+
+              covariatesWide <- covariateData$covariates %>%
+                filter(.data$covariateId %in% modelCovariateIds) %>%
+                collect() %>%
+                tidyr::pivot_wider(
+                  id_cols = "rowId",
+                  names_from = "covariateId",
+                  names_prefix = "cov_",
+                  values_from = "covariateValue",
+                  values_fill = 0
+                )
+
+              coxData <- coxData %>%
+                left_join(covariatesWide, by = "rowId")
+
+              covariateCols <- grep("^cov_", names(coxData), value = TRUE)
+              for (col in covariateCols) {
+                coxData[[col]][is.na(coxData[[col]])] <- 0
+              }
+
+              includedCovariates <- TRUE
+              nCovariatesIncluded <- length(covariateCols)
+
+              ParallelLogger::logDebug(
+                "Successfully added ", nCovariatesIncluded,
+                " covariate columns to coxph data"
+              )
+            }
+          }
+
+          coxData$rowId <- NULL
+
+          if (includedCovariates) {
+            covariateCols <- grep("^cov_", names(coxData), value = TRUE)
+            formulaStr <- paste0(
+              "survival::Surv(time, y) ~ treatment + ",
+              paste(covariateCols, collapse = " + "),
+              if (stratified) " + strata(stratumId)" else ""
+            )
+            coxFormula <- as.formula(formulaStr)
+          } else {
+            if (stratified) {
+              coxFormula <- survival::Surv(time, y) ~ treatment + strata(stratumId)
+            } else {
+              coxFormula <- survival::Surv(time, y) ~ treatment
+            }
+          }
+
+          if (inversePtWeighting) {
+            outcomeModel$coxphFit <- survival::coxph(
+              coxFormula,
+              data = coxData,
+              weights = coxData$weights,
+              x = TRUE,
+              y = TRUE
+            )
+          } else {
+            outcomeModel$coxphFit <- survival::coxph(
+              coxFormula,
+              data = coxData,
+              x = TRUE,
+              y = TRUE
+            )
+          }
+
+          outcomeModel$coxphFitSimplified <- !includedCovariates && useCovariates
+          outcomeModel$coxphFitNCovariatesIncluded <- nCovariatesIncluded
+
+          if (includedCovariates) {
+            ParallelLogger::logInfo(
+              "Stored coxph fit with ", nCovariatesIncluded,
+              " covariates for proportional hazards testing"
+            )
+          } else {
+            ParallelLogger::logDebug("Stored coxph fit for proportional hazards testing")
+          }
+        }
+      },
+      error = function(e) {
+        ParallelLogger::logWarn("Failed to store coxph fit for PH testing: ", e$message)
+        # Non-fatal - PH testing will fall back to refitting
+      }
+    )
+  }
+
   class(outcomeModel) <- "OutcomeModel"
   delta <- Sys.time() - start
   message(paste("Fitting outcome model took", signif(delta, 3), attr(delta, "units")))
@@ -561,7 +687,7 @@ filterAndTidyCovariates <- function(cohortMethodData,
   }
   if (length(excludeCovariateIds) != 0) {
     covariates <- covariates %>%
-      filter(!.data$covariateId %in% includeCovariateIds)
+      filter(!.data$covariateId %in% excludeCovariateIds)
   }
   filteredCovariateData <- Andromeda::andromeda(
     covariates = covariates,
@@ -608,10 +734,10 @@ createSubgroupCounts <- function(interactionCovariateIds, covariatesSubset, popu
     counts <- bind_cols(
       getCounts(subgroup, "Population count"),
       rename(getOutcomeCounts(subgroup, modelType),
-             targetOutcomePersons = .data$targetPersons,
-             comparatorOutcomePersons = .data$comparatorPersons,
-             targetOutcomeExposures = .data$targetExposures,
-             comparatorOutcomeExposures = .data$comparatorExposures
+        targetOutcomePersons = .data$targetPersons,
+        comparatorOutcomePersons = .data$comparatorPersons,
+        targetOutcomeExposures = .data$targetExposures,
+        comparatorOutcomeExposures = .data$comparatorExposures
       ),
       getTimeAtRisk(subgroup, modelType)
     )

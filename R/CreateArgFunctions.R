@@ -137,6 +137,50 @@ createTrimByPsToEquipoiseArgs <- function(bounds = c(0.3, 0.7)) {
   return(analysis)
 }
 
+#' Create a parameter object for the function computeRmst
+#'
+#' @details
+#' Create an object defining the parameter values.
+#'
+#' @param tau  The time horizon (in days) for RMST calculation. If NULL, uses maximum
+#'             follow-up time. If tau exceeds maximum follow-up, it will be truncated
+#'             with a warning.
+#' @param tauMethod  Method for selecting tau when NULL: "max" (maximum follow-up time),
+#'                   "median" (median follow-up), or "quantile" (specified quantile).
+#' @param tauQuantile  Quantile to use when tauMethod = "quantile" (default: 0.75).
+#' @param confLevel  Confidence level for confidence intervals (default: 0.95).
+#'
+#' @return
+#' An object of class `args` containing the parameter values.
+#'
+#' @examples
+#' # Basic RMST at 365 days (1 year)
+#' rmstArgs <- createComputeRmstArgs(tau = 365)
+#'
+#' # RMST at median follow-up
+#' rmstArgs <- createComputeRmstArgs(tau = NULL, tauMethod = "median")
+#'
+#' # RMST at 75th percentile follow-up with 99% CI
+#' rmstArgs <- createComputeRmstArgs(
+#'   tau = NULL,
+#'   tauMethod = "quantile",
+#'   tauQuantile = 0.75,
+#'   confLevel = 0.99
+#' )
+#'
+#' @export
+createComputeRmstArgs <- function(tau = NULL,
+                                  tauMethod = "max",
+                                  tauQuantile = 0.75,
+                                  confLevel = 0.95) {
+  analysis <- list()
+  for (name in names(formals(createComputeRmstArgs))) {
+    analysis[[name]] <- get(name)
+  }
+  class(analysis) <- "args"
+  return(analysis)
+}
+
 #' Create a parameter object for the function trimByIptw
 #'
 #' @details

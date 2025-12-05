@@ -25,3 +25,20 @@ adjustedKm <- function(weight, time, y) {
     .Call('_CohortMethod_adjustedKm', PACKAGE = 'CohortMethod', weight, time, y)
 }
 
+#' Compute RMST pseudovalues using Infinitesimal Jackknife
+#'
+#' @param subjectTimes    Subject survival times
+#' @param subjectEvents   Event indicators (0=censored, 1=event)
+#' @param kmTimes         KM curve event times
+#' @param kmSurv          KM survival probabilities
+#' @param kmNRisk         Number at risk at each event time
+#' @param kmNEvent        Number of events at each event time
+#' @param tau             Restriction time
+#' @param rmstAll         Overall RMST
+#'
+#' @export
+#'
+computeRmstPseudovaluesInternal <- function(subjectTimes, subjectEvents, kmTimes, kmSurv, kmNRisk, kmNEvent, tau, rmstAll) {
+    .Call('_CohortMethod_computeRmstPseudovaluesInternal', PACKAGE = 'CohortMethod', subjectTimes, subjectEvents, kmTimes, kmSurv, kmNRisk, kmNEvent, tau, rmstAll)
+}
+

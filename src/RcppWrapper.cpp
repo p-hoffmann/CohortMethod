@@ -22,15 +22,12 @@
  * @author Marc Suchard
  */
 
-#ifndef __RcppWrapper_cpp__
-#define __RcppWrapper_cpp__
-
-
 #include <Rcpp.h>
 #include <map>
 #include "Match.h"
 #include "Auc.h"
 #include "AdjustedKm.h"
+#include "RmstPseudovalues.h"
 
 using namespace Rcpp;
 
@@ -109,4 +106,48 @@ DataFrame adjustedKm(const std::vector<double> &weight, const std::vector<int> &
   return DataFrame::create();
 }
 
-#endif // __RcppWrapper_cpp__
+//' Compute RMST pseudovalues using Infinitesimal Jackknife
+//'
+//' @param subjectTimes    Subject survival times
+//' @param subjectEvents   Event indicators (0=censored, 1=event)
+//' @param kmTimes         KM curve event times
+//' @param kmSurv          KM survival probabilities
+//' @param kmNRisk         Number at risk at each event time
+//' @param kmNEvent        Number of events at each event time
+//' @param tau             Restriction time
+//' @param rmstAll         Overall RMST
+//'
+//' @export
+//'
+// [[Rcpp::export]]
+std::vector<double> computeRmstPseudovaluesInternal(
+    const std::vector<double> &subjectTimes,
+    const std::vector<int> &subjectEvents,
+    const std::vector<double> &kmTimes,
+    const std::vector<double> &kmSurv,
+    const std::vector<int> &kmNRisk,
+    const std::vector<int> &kmNEvent,
+    double tau,
+    double rmstAll) {
+
+  using namespace ohdsi::cohortMethod;
+
+  try {
+    std::vector<double> pseudovalues = RmstPseudovalues::computePseudovalues(
+      subjectTimes,
+      subjectEvents,
+      kmTimes,
+      kmSurv,
+      kmNRisk,
+      kmNEvent,
+      tau,
+      rmstAll
+    );
+    return pseudovalues;
+  } catch (std::exception &e) {
+    forward_exception_to_r(e);
+  } catch (...) {
+    ::Rf_error("c++ exception (unknown reason)");
+  }
+  return std::vector<double>();
+}

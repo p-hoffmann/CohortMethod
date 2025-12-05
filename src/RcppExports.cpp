@@ -61,12 +61,31 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// computeRmstPseudovaluesInternal
+std::vector<double> computeRmstPseudovaluesInternal(const std::vector<double>& subjectTimes, const std::vector<int>& subjectEvents, const std::vector<double>& kmTimes, const std::vector<double>& kmSurv, const std::vector<int>& kmNRisk, const std::vector<int>& kmNEvent, double tau, double rmstAll);
+RcppExport SEXP _CohortMethod_computeRmstPseudovaluesInternal(SEXP subjectTimesSEXP, SEXP subjectEventsSEXP, SEXP kmTimesSEXP, SEXP kmSurvSEXP, SEXP kmNRiskSEXP, SEXP kmNEventSEXP, SEXP tauSEXP, SEXP rmstAllSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::vector<double>& >::type subjectTimes(subjectTimesSEXP);
+    Rcpp::traits::input_parameter< const std::vector<int>& >::type subjectEvents(subjectEventsSEXP);
+    Rcpp::traits::input_parameter< const std::vector<double>& >::type kmTimes(kmTimesSEXP);
+    Rcpp::traits::input_parameter< const std::vector<double>& >::type kmSurv(kmSurvSEXP);
+    Rcpp::traits::input_parameter< const std::vector<int>& >::type kmNRisk(kmNRiskSEXP);
+    Rcpp::traits::input_parameter< const std::vector<int>& >::type kmNEvent(kmNEventSEXP);
+    Rcpp::traits::input_parameter< double >::type tau(tauSEXP);
+    Rcpp::traits::input_parameter< double >::type rmstAll(rmstAllSEXP);
+    rcpp_result_gen = Rcpp::wrap(computeRmstPseudovaluesInternal(subjectTimes, subjectEvents, kmTimes, kmSurv, kmNRisk, kmNEvent, tau, rmstAll));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_CohortMethod_matchPsInternal", (DL_FUNC) &_CohortMethod_matchPsInternal, 4},
     {"_CohortMethod_aucWithCi", (DL_FUNC) &_CohortMethod_aucWithCi, 2},
     {"_CohortMethod_aucWithoutCi", (DL_FUNC) &_CohortMethod_aucWithoutCi, 2},
     {"_CohortMethod_adjustedKm", (DL_FUNC) &_CohortMethod_adjustedKm, 3},
+    {"_CohortMethod_computeRmstPseudovaluesInternal", (DL_FUNC) &_CohortMethod_computeRmstPseudovaluesInternal, 8},
     {NULL, NULL, 0}
 };
 
